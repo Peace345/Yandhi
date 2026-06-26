@@ -78,13 +78,41 @@ let currentAlbum = {
       { file: "thestorm.mp3", title: "The Storm", artist: "Kanye West, Ty Dolla $ign, Kid Cudi, XXXTENTACION" },
       { file: "spreadyourwings.mp3", title: "Spread Your Wings", artist: "Kanye West" },
       { file: "newbody.mp3", title: "New Body", artist: "Kanye West, Nicki Minaj, Ty Dolla $ign" },
-      { file: "80degrees.mp3", title: "80 Degrees", artist: "Kanye West, Ant Clemons" },
+      {
+        title: "80 Degrees",
+        versions: [
+      {
+        version: "V8",
+        file: "80degreesv8.mp3",
+        artist: "Kanye West, Ant Clemons, Big Sean, Ty Dolla $ign"
+      },
+      {
+        version: "V3",
+        file: "80degrees.mp3",
+        artist: "Kanye West, Ant Clemons"
+      }
+    ]
+  },
       { file: "cityinthesky.mp3", title: "City In The Sky", artist: "Kanye West, Desiigner, Jeremih, Kid Cudi, The-Dream, Ty Dolla $ign, 070 Shake" },
       { file: "alieninterlude.mp3", title: "Alien (Interlude)", artist: "Kanye West" },
       { file: "alien.mp3", title: "Alien", artist: "Kanye West, Quavo, Kid Cudi, Young Thug, Ant Clemons" },
       { file: "brothers.mp3", title: "Brothers", artist: "Kanye West, Charlie Wilson" },
       { file: "cashtoburn.mp3", title: "Cash To Burn", artist: "Kanye West, Ant Clemons, Styles P, Kenny G" },
-      { file: "lawofattraction.mp3", title: "Law Of Attraction", artist: "Kanye West, Ant Clemons, Clipse, Kenny G" },
+      {
+        title: "Law Of Attraction",
+        versions: [
+      {
+        version: "V7",
+        file: "lawofattractionv7.mp3",
+        artist: "Kanye West, Ant Clemons, Clipse, Kenny G, Nino Blu"
+      },
+      {
+        version: "V2",
+        file: "lawofattraction.mp3",
+        artist: "Kanye West, Ant Clemons, Clipse, Kenny G"
+      }
+    ]
+  },
       { file: "ongod.mp3", title: "On God", artist: "Kanye West, Dua Lipa" },
       { file: "thegarden.mp3", title: "The Garden", artist: "Kanye West, Ant Clemons, Ty Dolla $ign, Teyana Taylor" },
       { file: "lastname.mp3", title: "Last Name", artist: "Kanye West, Ant Clemons" },
@@ -119,22 +147,105 @@ function buildSongs() {
   songsDiv.innerHTML = "";
 
   currentAlbum.songs.forEach((song, i) => {
-    const div = document.createElement("div");
-    div.className = "song";
 
-    div.innerHTML = `
-      <strong>${song.title}</strong><br>
-      <small>${song.artist || ""}</small>
-    `;
+    // SONG WITH MULTIPLE VERSIONS
+    if (song.versions) {
 
-    div.onclick = () => playSong(i);
+      const group = document.createElement("div");
+      group.className = "song";
 
-    songsDiv.appendChild(div);
+      group.innerHTML = `<strong>${song.title} ▼</strong>`;
+
+      group.onclick = () => {
+
+        // prevent duplicates
+        if (group.dataset.opened) return;
+        group.dataset.opened = true;
+
+        song.versions.forEach(version => {
+
+          const div = document.createElement("div");
+          div.className = "song";
+
+          div.innerHTML = `
+            <div style="display:flex; align-items:center;">
+              <div style="width:60px;">
+                <strong>${version.version}</strong>
+              </div>
+
+              <div style="flex:1; text-align:center;">
+                <strong>${song.title}</strong><br>
+                <small>${version.artist}</small>
+              </div>
+            </div>
+          `;
+
+          div.onclick = (e) => {
+            e.stopPropagation();
+
+            window.audio.src = version.file;
+            window.audio.play();
+
+            updateMediaSession({
+              title: song.title,
+              artist: version.artist
+            });
+          };
+
+          group.after(div);
+
+        });
+
+      };
+
+      songsDiv.appendChild(group);
+
+    }
+
+    // NORMAL SONG
+    else {
+
+      const div = document.createElement("div");
+      div.className = "song";
+
+      div.innerHTML = `
+        <strong>${song.title}</strong><br>
+        <small>${song.artist || ""}</small>
+      `;
+
+      div.onclick = () => playSong(i);
+
+      songsDiv.appendChild(div);
+
+    }
+
   });
+
 }
 
 // PLAY SONG
 function playSong(i) {
+
+  // Skip version groups
+  while (
+    i < currentAlbum.songs.length &&
+    currentAlbum.songs[i].versions
+  ) {
+    i++;
+  }
+
+  // Loop back to beginning if needed
+  if (i >= currentAlbum.songs.length) {
+    i = 0;
+
+    while (
+      i < currentAlbum.songs.length &&
+      currentAlbum.songs[i].versions
+    ) {
+      i++;
+    }
+  }
+
   currentIndex = i;
 
   const song = currentAlbum.songs[i];
@@ -211,20 +322,40 @@ window.addEventListener("DOMContentLoaded", () => {
   const audio = document.getElementById("audio");
 
   audio.addEventListener("ended", () => {
-    if (!currentAlbum) return;
+  if (!currentAlbum) return;
 
-    const nextIndex = currentIndex + 1;
+  const list = getPlayableSongs();
 
-    if (nextIndex < currentAlbum.songs.length) {
-      playSong(nextIndex);
-    } else {
-      playSong(0);
-    }
-  });
+  const currentSong = currentAlbum.songs[currentIndex];
+  const nextIndex = list.indexOf(currentSong) + 1;
+
+  if (nextIndex < list.length) {
+    const nextSong = list[nextIndex];
+
+    const realIndex = currentAlbum.songs.indexOf(nextSong);
+    playSong(realIndex);
+  } else {
+    playSong(currentAlbum.songs.indexOf(list[0]));
+  }
+});
 
   // expose audio globally so playSong can use it safely
   window.audio = audio;
 });
+
+function getPlayableSongs() {
+  const list = [];
+
+  currentAlbum.songs.forEach(song => {
+    if (song.versions) {
+      // skip the container entirely
+      return;
+    }
+    list.push(song);
+  });
+
+  return list;
+}
   
 </script>
 
