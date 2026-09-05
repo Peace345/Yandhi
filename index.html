@@ -82,15 +82,15 @@ let currentAlbum = {
         title: "80 Degrees",
         versions: [
       {
+        version: "V3",
+        file: "80degrees.mp3",
+        artist: "Kanye West, Ant Clemons"
+      },
+      {
         version: "V8",
         file: "80degreesv8.mp3",
         artist: "Kanye West, Ant Clemons, Big Sean, Ty Dolla $ign"
       },
-      {
-        version: "V3",
-        file: "80degrees.mp3",
-        artist: "Kanye West, Ant Clemons"
-      }
     ]
   },
       { file: "cityinthesky.mp3", title: "City In The Sky", artist: "Kanye West, Desiigner, Jeremih, Kid Cudi, The-Dream, Ty Dolla $ign, 070 Shake" },
@@ -102,15 +102,15 @@ let currentAlbum = {
         title: "Law Of Attraction",
         versions: [
       {
+        version: "V2",
+        file: "lawofattraction.mp3",
+        artist: "Kanye West, Ant Clemons, Clipse, Kenny G"
+      },
+      {
         version: "V7",
         file: "lawofattractionv7.mp3",
         artist: "Kanye West, Ant Clemons, Clipse, Kenny G, Nino Blu"
       },
-      {
-        version: "V2",
-        file: "lawofattraction.mp3",
-        artist: "Kanye West, Ant Clemons, Clipse, Kenny G"
-      }
     ]
   },
       { file: "ongod.mp3", title: "On God", artist: "Kanye West, Dua Lipa" },
@@ -133,16 +133,21 @@ let currentAlbum = {
   ]
 };
 
-// BACK BUTTON (PUT MAIN REPO LINK HERE)
+// BACK BUTTON
 function goBack() {
-  window.location.href = "https://peace345.github.io/Ye-Unreleased-Archive/"; // <-- paste main library repo URL here
+  window.location.href = "https://peace345.github.io/Ye-Unreleased-Archive/";
 }
+
+
+// VARIABLES
+let currentIndex = 0;
+let currentVersionIndex = null;
+
 
 // LOAD ALBUM
 document.getElementById("albumTitle").innerText = currentAlbum.name;
 document.getElementById("cover").src = currentAlbum.cover;
 
-buildSongs();
 
 // BUILD SONG LIST
 function buildSongs() {
@@ -161,11 +166,11 @@ function buildSongs() {
 
       group.onclick = () => {
 
-        // prevent duplicates
+        // Prevent duplicates
         if (group.dataset.opened) return;
         group.dataset.opened = true;
 
-        song.versions.forEach(version => {
+        song.versions.forEach((version, versionIndex) => {
 
           const div = document.createElement("div");
           div.className = "song";
@@ -186,6 +191,9 @@ function buildSongs() {
           div.onclick = (e) => {
             e.stopPropagation();
 
+            currentIndex = i;
+            currentVersionIndex = versionIndex;
+
             window.audio.src = version.file;
             window.audio.play();
 
@@ -196,7 +204,6 @@ function buildSongs() {
           };
 
           group.after(div);
-
         });
 
       };
@@ -219,147 +226,206 @@ function buildSongs() {
       div.onclick = () => playSong(i);
 
       songsDiv.appendChild(div);
-
     }
 
   });
-
 }
 
+
 // PLAY SONG
-function playSong(i) {
-
-  // Skip version groups
-  while (
-    i < currentAlbum.songs.length &&
-    currentAlbum.songs[i].versions
-  ) {
-    i++;
-  }
-
-  // Loop back to beginning if needed
-  if (i >= currentAlbum.songs.length) {
-    i = 0;
-
-    while (
-      i < currentAlbum.songs.length &&
-      currentAlbum.songs[i].versions
-    ) {
-      i++;
-    }
-  }
+function playSong(i, versionIndex = null) {
 
   currentIndex = i;
 
   const song = currentAlbum.songs[i];
 
+  // VERSION GROUP
+  if (song.versions) {
+
+    // Start with the LOWEST version.
+    // Your array is highest → lowest,
+    // so the lowest version is the LAST item.
+    if (versionIndex === null) {
+      versionIndex = song.versions.length - 1;
+    }
+
+    currentVersionIndex = versionIndex;
+
+    const version = song.versions[versionIndex];
+
+    window.audio.src = version.file;
+    window.audio.play();
+
+    updateMediaSession({
+      title: song.title,
+      artist: version.artist
+    });
+
+    return;
+  }
+
+
+  // NORMAL SONG
+  currentVersionIndex = null;
+
   window.audio.src = song.file;
   window.audio.play();
 
-  updateMediaSession(song, currentAlbum);
+  updateMediaSession(song);
 }
 
+
+// MEDIA SESSION
 function updateMediaSession(song) {
-  if (!('mediaSession' in navigator)) return;
+
+  if (!("mediaSession" in navigator)) return;
 
   navigator.mediaSession.metadata = new MediaMetadata({
     title: song.title,
     artist: song.artist,
     album: currentAlbum.name,
     artwork: [
-      { src: currentAlbum.cover, sizes: "512x512", type: "image/jpg" }
+      {
+        src: currentAlbum.cover,
+        sizes: "512x512",
+        type: "image/jpeg"
+      }
     ]
   });
 
   navigator.mediaSession.setActionHandler("play", () => {
-    audio.play();
+    window.audio.play();
   });
 
   navigator.mediaSession.setActionHandler("pause", () => {
-    audio.pause();
+    window.audio.pause();
   });
 
   navigator.mediaSession.setActionHandler("previoustrack", () => {
+
     if (!currentAlbum) return;
-    currentIndex = (currentIndex - 1 + currentAlbum.songs.length) % currentAlbum.songs.length;
-    playSong(currentIndex);
+
+    // If currently playing a version, go to the previous version
+    if (
+      currentVersionIndex !== null &&
+      currentVersionIndex > 0
+    ) {
+      playSong(currentIndex, currentVersionIndex - 1);
+      return;
+    }
+
+    // Otherwise go to previous album track
+    if (currentIndex > 0) {
+      playSong(currentIndex - 1);
+    } else {
+      playSong(currentAlbum.songs.length - 1);
+    }
   });
 
   navigator.mediaSession.setActionHandler("nexttrack", () => {
+
     if (!currentAlbum) return;
-    currentIndex = (currentIndex + 1) % currentAlbum.songs.length;
-    playSong(currentIndex);
+
+    const song = currentAlbum.songs[currentIndex];
+
+    // If playing a version, go to the next version
+    if (
+      song.versions &&
+      currentVersionIndex !== null &&
+      currentVersionIndex < song.versions.length - 1
+    ) {
+      playSong(currentIndex, currentVersionIndex + 1);
+      return;
+    }
+
+    // Otherwise go to next album track
+    if (currentIndex < currentAlbum.songs.length - 1) {
+      playSong(currentIndex + 1);
+    } else {
+      playSong(0);
+    }
   });
 }
 
-  if ("mediaSession" in navigator) {
 
-  navigator.mediaSession.setActionHandler("play", async () => {
-    await audio.play();
-  });
-
-  navigator.mediaSession.setActionHandler("pause", () => {
-    audio.pause();
-  });
-
-}
-
+// PLAY / PAUSE BUTTON
 function togglePlay() {
-  if (audio.paused) {
-    audio.play();
+
+  if (window.audio.paused) {
+    window.audio.play();
   } else {
-    audio.pause();
+    window.audio.pause();
   }
 }
 
-  audio.addEventListener("play", () => {
-  document.getElementById("playPauseBtn").innerText = "⏸️ Pause";
-});
 
-audio.addEventListener("pause", () => {
-  document.getElementById("playPauseBtn").innerText = "▶️ Play";
-});
-
+// INITIALIZE AUDIO
 window.addEventListener("DOMContentLoaded", () => {
 
   const audio = document.getElementById("audio");
 
-  audio.addEventListener("ended", () => {
-  if (!currentAlbum) return;
-
-  const list = getPlayableSongs();
-
-  const currentSong = currentAlbum.songs[currentIndex];
-  const nextIndex = list.indexOf(currentSong) + 1;
-
-  if (nextIndex < list.length) {
-    const nextSong = list[nextIndex];
-
-    const realIndex = currentAlbum.songs.indexOf(nextSong);
-    playSong(realIndex);
-  } else {
-    playSong(currentAlbum.songs.indexOf(list[0]));
-  }
-});
-
-  // expose audio globally so playSong can use it safely
+  // Make audio available to the rest of the script
   window.audio = audio;
-});
 
-function getPlayableSongs() {
-  const list = [];
 
-  currentAlbum.songs.forEach(song => {
-    if (song.versions) {
-      // skip the container entirely
-      return;
-    }
-    list.push(song);
+  // PLAY BUTTON UI
+  audio.addEventListener("play", () => {
+    document.getElementById("playPauseBtn").innerText = "⏸️ Pause";
   });
 
-  return list;
-}
-  
+
+  // PAUSE BUTTON UI
+  audio.addEventListener("pause", () => {
+    document.getElementById("playPauseBtn").innerText = "▶️ Play";
+  });
+
+
+  // AUTOPLAY THROUGH ALBUM
+  audio.addEventListener("ended", () => {
+
+    if (!currentAlbum) return;
+
+    const song = currentAlbum.songs[currentIndex];
+
+
+    // VERSION GROUP
+    if (
+      song.versions &&
+      currentVersionIndex !== null
+    ) {
+
+      // Your versions are stored:
+      // V6 → V5 → V4 → V1
+      //
+      // So autoplay moves backward through the array:
+      // V1 → V4 → V5 → V6
+
+      const nextVersion = currentVersionIndex - 1;
+
+      if (nextVersion >= 0) {
+        playSong(currentIndex, nextVersion);
+        return;
+      }
+    }
+
+
+    // FINISHED ALL VERSIONS
+    // Move to the next album track
+    if (currentIndex < currentAlbum.songs.length - 1) {
+      playSong(currentIndex + 1);
+    } else {
+      // End of album → restart album
+      playSong(0);
+    }
+
+  });
+
+
+  // BUILD THE SONG LIST
+  buildSongs();
+
+});
+
 </script>
 
 </body>
